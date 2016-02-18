@@ -31,10 +31,10 @@
 
 
 /* Preferences */
-#define PLUGIN_ID "core-grburst-gnome_keyring"
-#define KEYRING_NAME_PREF "/plugins/core/GnomeKeyring/keyring_name"
+#define PLUGIN_ID "core-grburst-purple_gnome_keyring"
+#define KEYRING_NAME_PREF "/plugins/core/purple_gnome_keyring/keyring_name"
 #define KEYRING_NAME_DEFAULT SECRET_COLLECTION_DEFAULT
-#define KEYRING_AUTO_SAVE_PREF "/plugins/core/GnomeKeyring/auto_save"
+#define KEYRING_AUTO_SAVE_PREF "/plugins/core/purple_gnome_keyring/auto_save"
 #define KEYRING_AUTO_SAVE_DEFAULT TRUE
 
 // Plugin handles
@@ -487,7 +487,7 @@ static PurplePluginInfo info = {
     "Use gnome keyring to securely store passwords.",
     "This plugin will use the gnome keyring to store and load passwords for your accounts.",
     "GRBurst",
-    "<github link>",
+    "https://github.com/GRBurst/purple-gnome-keyring",
     plugin_load,
     plugin_unload,
     NULL,   /* plugin destory */
@@ -504,7 +504,7 @@ static PurplePluginInfo info = {
 // Init function
 static void init_plugin(PurplePlugin *plugin)
 {
-    purple_prefs_add_none("/plugins/core/GnomeKeyring");
+    purple_prefs_add_none("/plugins/core/purple_gnome_keyring");
     purple_prefs_add_string(KEYRING_NAME_PREF, KEYRING_NAME_DEFAULT);
     purple_prefs_add_bool(KEYRING_AUTO_SAVE_PREF, KEYRING_AUTO_SAVE_DEFAULT);
 }
