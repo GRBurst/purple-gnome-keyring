@@ -1,13 +1,13 @@
 TARGET = purple-gnome-keyring
 
-VERSION = "1.0"
+VERSION = "0.7"
 LIBSECRET	= `pkg-config --libs --cflags libsecret-1`
 DBUSLIB		= `pkg-config --cflags dbus-glib-1`
 PURPLE		= `pkg-config --cflags purple`
 
 all: ${TARGET}.so
 
-clean: 
+clean:
 	rm -f ${TARGET}.so
 
 ${TARGET}.so: ${TARGET}.c

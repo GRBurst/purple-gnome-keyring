@@ -3,7 +3,7 @@
 #endif
 
 #ifndef VERSION
-#define VERSION "0.1.0"
+#define VERSION "0.7.0"
 #endif
 
 #include <glib.h>
@@ -366,6 +366,27 @@ static void delete_all_passwords(PurplePluginAction *action)
 
 
 
+
+
+// Signal account added action
+static void account_added(gpointer data, gpointer user_data)
+{
+    service_store_account_password((PurpleAccount*) data, NULL);
+}
+
+// Signal account removed action
+static void account_removed(gpointer data, gpointer user_data)
+{
+    delete_account_password((PurpleAccount*) data, NULL);
+}
+
+// Signal account password changed action
+static void account_changed(gpointer data, gpointer user_data)
+{
+}
+
+
+
 /*
  * General plugin handling
  */
@@ -384,41 +405,6 @@ static GList *plugin_actions(PurplePlugin *plugin, gpointer context)
     return list;
 }
 
-
-#ifdef AUTOSAVE_PASSWORDS
-static void account_added(gpointer data, gpointer user_data)
-{
-    store_password((PurpleAccount*)data);
-}
-
-static void account_removed(gpointer data, gpointer user_data)
-{
-    PurpleAccount *account=(PurpleAccount*)data;
-    int           wallet=open_wallet(TRUE);
-
-    if(wallet>=0)
-    {
-        const char *key=key_for_account(account);
-        char       *password=read_password(wallet, key);
-
-        if(password)
-        {
-            remove_entry(wallet, key);
-            g_free(password);
-        }
-    }
-}
-
-static void account_changed(gpointer data, gpointer user_data)
-{
-    // TODO: Is there a way to detect when an account has changed?????
-    PurpleAccount *account=(PurpleAccount*)data;
-    printf("Account changed: %s -> %s\n", key_for_account(account), password ? password : "<>");
-
-    //store_password((PurpleAccount*)data);
-}
-#endif
-
 // Unload plugin
 static gboolean plugin_unload(PurplePlugin *plugin)
 {
@@ -435,39 +421,15 @@ static gboolean plugin_load(PurplePlugin *plugin)
     accounts = purple_accounts_get_all();
     g_list_foreach(accounts, get_account_password, NULL);
 
-#ifdef AUTOSAVE_PASSWORDS
-    void *accounts_handle=purple_accounts_get_handle();
-    purple_signal_connect(accounts_handle, "account-added", plugin,
-            PURPLE_CALLBACK(account_added), NULL);
-    purple_signal_connect(accounts_handle, "account-removed", plugin,
-            PURPLE_CALLBACK(account_removed), NULL);
-    purple_signal_connect(accounts_handle, "account-set-info", plugin,
-            PURPLE_CALLBACK(account_changed), NULL);
-#endif
+    void *accounts_handle = purple_accounts_get_handle();
 
-    gint i = 256;
-    gfloat f = 512.1024;
-    const gchar *s = "example string";
-
-    /* Introductory message */
-    purple_debug_info(PLUGIN_ID,
-            "Called plugin_load.  Beginning debug demonstration\n");
-
-    /* Show off the debug API a bit */
-    purple_debug_misc(PLUGIN_ID,
-            "MISC level debug message.  i = %d, f = %f, s = %s\n", i, f, s);
-
-    purple_debug_info(PLUGIN_ID,
-            "INFO level debug message.  i = %d, f = %f, s = %s\n", i, f, s);
-
-    purple_debug_warning(PLUGIN_ID,
-            "WARNING level debug message.  i = %d, f = %f, s = %s\n", i, f, s);
-
-    purple_debug_error(PLUGIN_ID,
-            "ERROR level debug message.  i = %d, f = %f, s = %s\n", i, f, s);
-
-    purple_debug_fatal(PLUGIN_ID,
-            "FATAL level debug message. i = %d, f = %f, s = %s\n", i, f, s);
+    /* Accounts subsystem signals */
+    if(purple_prefs_get_bool(KEYRING_AUTO_SAVE_PREF))
+    {
+        purple_signal_connect(accounts_handle, "account-added",     plugin, PURPLE_CALLBACK(account_added),     NULL);
+        purple_signal_connect(accounts_handle, "account-removed",   plugin, PURPLE_CALLBACK(account_removed),   NULL);
+        purple_signal_connect(accounts_handle, "account-set-info",  plugin, PURPLE_CALLBACK(account_changed),   NULL);
+    }
 
     return TRUE;
 }
