@@ -5,8 +5,7 @@ Purple plugin for seemless integration of the Gnome Keyring as password storage.
 ## Usage
 - Clone repo
 - Call `make purple-gnome-keyring.so`
-- Call `make install`\*
-\* Asuming you have installed pidgin locally
+- Call `make install` (Asuming you have installed pidgin locally)
 
 ## Progress
 ### Features
