@@ -7,7 +7,7 @@
 #endif
 
 #include <glib.h>
-#include <dbus/dbus-glib.h>
+#include <dbus/dbus-glib.h> //Needed if implement dbus start fallback
 
 #ifndef G_GNUC_NULL_TERMINATED
 # if __GNUC__ >= 4

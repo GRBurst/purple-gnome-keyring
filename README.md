@@ -34,6 +34,13 @@ This plugin seemlessly integrates the Gnome Keyring with your instant messanger.
 - Tested with Finch without any issues
 
 ## Known issues
+NONE
+
 ### Prevent issues
 - Make sure that Gnome Keyring is running
 - Make sure thad DBUS in running
+
+## Packages
+- Package available in AUR
+
+-> Ask if package needed
