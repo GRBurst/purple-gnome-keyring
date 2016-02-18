@@ -322,9 +322,9 @@ static void on_password_deleted (GObject *source,
 // Delete password function
 static void delete_account_password(gpointer data, gpointer user_data)
 {
-    PurpleAccount *account=(PurpleAccount*)data;
-    GError *error = NULL;
-    gchar *password = secret_password_lookup_sync (PURPLE_SCHEMA, NULL, &error,
+    PurpleAccount *account  = (PurpleAccount*) data;
+    GError *error           = NULL;
+    gchar *password         = secret_password_lookup_sync (PURPLE_SCHEMA, NULL, &error,
             "protocol" , purple_account_get_protocol_id(account),
             "username" , purple_account_get_username(account),
             NULL);
@@ -349,8 +349,8 @@ static void delete_account_password(gpointer data, gpointer user_data)
 // Delete all passwords from keyring action
 static void delete_all_passwords(PurplePluginAction *action)
 {
-    gpointer user_data = NULL;
-    GList *accounts = purple_accounts_get_all();
+    gpointer user_data  = NULL;
+    GList *accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, delete_account_password, user_data);
     purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Gnome Keyring", "Deleted all passwords from Keyring", NULL, NULL, NULL);
 }
