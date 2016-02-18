@@ -12,9 +12,12 @@ Purple plugin for seemless integration of the Gnome Keyring as password storage.
 - Store passwords in an abitrary keyring
 - Load passwords when plugin loaded
 - Move or delete all passwords to / from Gnome Keyring at once
+    - Actions are available in menu: `Tools->Gnome Keyring Plugin`
+- Signal handling when account is created / deleted
+    - If enabled in preferences, passwords of new accounts are automatically stored in the Gnome Keyring
 
 ### TODO
-- Signal handling when account is created / deleted or password has changed
 - Create Keyring if given keyringname does not exists
+- Signal handling when account password was changed
 
 
