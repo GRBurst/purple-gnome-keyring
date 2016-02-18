@@ -6,8 +6,8 @@ This plugin seemlessly integrates the Gnome Keyring with your instant messanger.
 ## Usage
 ### Installation
 - Clone repo
-- Call `make purple-gnome-keyring.so`
-- Call `make install` (Asuming you have installed pidgin locally)
+- Call `make`
+- Call `make install` (Currently installs plugin locally)
 
 ### Integration
 - Go to plugin page in the menu: `Tools->Plugins` or `with Ctrl+U`
