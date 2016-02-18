@@ -4,9 +4,17 @@ Plugin for your purple based instand messenger like Pidgin or Finch.
 This plugin seemlessly integrates the Gnome Keyring with your instant messanger. Therefore your password are stored securely - since Pidgin itself stores passwords in plaintext.
 
 ## Usage
+### Installation
 - Clone repo
 - Call `make purple-gnome-keyring.so`
 - Call `make install` (Asuming you have installed pidgin locally)
+
+### Integration
+- Go to plugin page in the menu: `Tools->Plugins` or `with Ctrl+U`
+- Enable plugin `Gnome Keyring Plugin`
+- Optional: Configure plugin, e.g. to use with a separate keyring
+- To move all currently active passwords to the keyring, hit
+    - `Save all passwords to keyring` in menu: `Tools->Gnome Keyring Plugin`
 
 ## Progress
 ### Features
