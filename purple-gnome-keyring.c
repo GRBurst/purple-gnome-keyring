@@ -61,17 +61,28 @@ const SecretSchema* get_purple_schema (void)
 }
 
 // Unified Error messages
-static void print_error_message(char* location, gchar* error)
+static void print_error_message(char* prim_msg, char* sec_msg)
 {
-    char sec[255] = "Error in ";
-    char msg[255] = "Error message: ";
-
-    purple_notify_error(gnome_keyring_plugin, "Gnome Keyring Plugin Error",
-        strcat(sec, location),
-        strcat(msg, error));
-        /* location, */
-        /* error); */
+    purple_notify_error(gnome_keyring_plugin,
+            "Gnome Keyring Plugin Error",
+            prim_msg,
+            sec_msg);
 }
+
+static void print_protocol_error_message(const char* protocol_name, char* prim_msg, char* sec_msg)
+{
+
+    char msg[255] = "";
+    strcat(msg, protocol_name);
+    strcat(msg, " account error: ");
+    strcat(msg, prim_msg);
+
+    purple_notify_error(gnome_keyring_plugin,
+            "Gnome Keyring Plugin Error",
+            prim_msg,
+            sec_msg);
+}
+
 
 /*
  * Save password(s) section.
@@ -88,7 +99,7 @@ static void on_item_created(GObject *source,
 
     if (error != NULL)
     {
-        print_error_message("on item created", error->message);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Error saving passwort to keyring", error->message);
         g_error_free (error);
     }
     else
@@ -98,12 +109,12 @@ static void on_item_created(GObject *source,
 // Finally store password in the keyring
 static void store_password(SecretCollection* collection, PurpleAccount *account)
 {
-    gpointer id             = purple_account_get_protocol_id(account);
-    gpointer un             = purple_account_get_username(account);
+    const char* id  = purple_account_get_protocol_id(account);
+    const char* un  = purple_account_get_username(account);
 
     GHashTable* attributes  = g_hash_table_new(g_str_hash, g_str_equal);
-    g_hash_table_insert(attributes, "protocol" , id);
-    g_hash_table_insert(attributes, "username" , un);
+    g_hash_table_insert(attributes, "protocol" , (gpointer*) id);
+    g_hash_table_insert(attributes, "username" , (gpointer*) un);
 
     secret_item_create(collection,
             PURPLE_SCHEMA,
@@ -113,7 +124,7 @@ static void store_password(SecretCollection* collection, PurpleAccount *account)
             SECRET_ITEM_CREATE_REPLACE,
             NULL,
             on_item_created,
-            NULL
+            account
             );
 
     g_hash_table_destroy(attributes);
@@ -130,7 +141,7 @@ static void on_alias_collection_load(GObject *source,
 
     if(error != NULL)
     {
-        print_error_message("on load alias collections", error->message);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load default keyring", error->message);
         g_error_free (error);
     }
     else
@@ -153,7 +164,7 @@ static void on_service_collections_load(GObject *source,
 
     if (error != NULL)
     {
-        print_error_message("on collections load", error->message);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load given keyring", error->message);
         g_error_free (error);
     }
     else if(success)
@@ -162,7 +173,7 @@ static void on_service_collections_load(GObject *source,
 
         if (!collections)
         {
-            print_error_message("on collections load", "collections empty");
+            print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load keyrings", "Check if DBus in running");
             return;
         }
 
@@ -198,7 +209,7 @@ static void on_got_service(GObject *source,
 
     if (error != NULL)
     {
-        print_error_message("on got service", error->message);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not connet any service", error->message);
         g_error_free (error);
     }
     else
@@ -219,13 +230,8 @@ static void service_store_account_password(gpointer data, gpointer user_data)
     if(purple_account_get_password(account))
         secret_service_get(SECRET_SERVICE_NONE, NULL, on_got_service, data);
     else
-    {
-        /* if(strcmp(purple_account_get_password(account), "")) */
-        char msg[255] = "Password for ";
-        strcat(msg, purple_account_get_protocol_name(account));
-        strcat(msg, " is empty! No password saved.");
-        purple_notify_warning(gnome_keyring_plugin, "Gnome Keyring Plugin", "Password empty", msg);
-    }
+        print_protocol_error_message(purple_account_get_protocol_name(account), "Password is empty - no password saved", NULL);
+
 }
 
 // Store all passwords action
@@ -234,6 +240,7 @@ static void save_all_passwords(PurplePluginAction *action)
     gpointer user_data  = NULL;
     GList *accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, service_store_account_password, user_data);
+    purple_notify_info(gnome_keyring_plugin, "Gnome Keyring Info", "Finished saving of passwords to keyring", NULL);
 }
 
 
@@ -251,42 +258,51 @@ static void on_password_lookup (GObject *source,
                     GAsyncResult *result,
                     gpointer user_data)
 {
-    GError *error = NULL;
+    GError *error   = NULL;
     gchar *password = secret_password_lookup_finish (result, &error);
 
 
-    if (error != NULL) {
-        purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "Could not read password.", NULL, NULL, NULL);
+    if (error != NULL)
+    {
+        print_protocol_error_message((char*)(user_data), "Could not read password", error->message);
         g_error_free(error);
-    } else if (password == NULL) {
-        purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "No password found.", NULL, NULL, NULL);
-    } else {
+    }
+    else if (password == NULL)
+    {
+        print_protocol_error_message((char*)(user_data), "Password is empty or no password given", NULL);
+    }
+    else
+    {
         purple_account_set_password(user_data, password);
         secret_password_free (password);
     }
 
 }
 
-static void get_account_password(gpointer data, gpointer user_data)
+static void get_account_password_sync(gpointer data, gpointer user_data)
 {
-    PurpleAccount *account=(PurpleAccount*)data;
+    PurpleAccount *account = (PurpleAccount*)data;
 
     if(!purple_account_get_remember_password(account))
     {
         // Make in synchronously to prevent asks for password dialogs
-        GError *error = NULL;
+        GError *error   = NULL;
         gchar *password = secret_password_lookup_sync (PURPLE_SCHEMA, NULL, &error,
                 "protocol" , purple_account_get_protocol_id(account),
                 "username" , purple_account_get_username(account),
                 NULL);
 
-        if (error != NULL) {
-            /* purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "Could not read password.", NULL, NULL, NULL); */
-            purple_notify_error(gnome_keyring_plugin, "Password error!", "Password error!", "Could not read password!");
+        if (error != NULL)
+        {
+            print_protocol_error_message(purple_account_get_protocol_name(account), "Could not read password", error->message);
             g_error_free(error);
-        } else if (password == NULL) {
-            /* purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "No password found.", NULL, NULL, NULL); */
-        } else {
+        }
+        else if (password == NULL)
+        {
+            print_protocol_error_message(purple_account_get_protocol_name(account), "Password is empty or no password given", NULL);
+        }
+        else
+        {
             purple_account_set_password(account, password);
             secret_password_free (password);
         }
@@ -305,17 +321,18 @@ static void get_account_password(gpointer data, gpointer user_data)
  */
 
 // Deleted callback
-static void on_password_deleted (GObject *source,
+static void on_password_deleted(GObject *source,
                     GAsyncResult *result,
                     gpointer user_data)
 {
     GError *error = NULL;
 
-    secret_password_clear_finish (result, &error);
-    if (error != NULL) {
+    secret_password_clear_finish(result, &error);
+    if(error != NULL)
+    {
+        print_error_message("", error->message);
+        print_protocol_error_message((char*)(user_data), "Could not delete password to store it in messanger", error->message);
         g_error_free (error);
-    } else {
-
     }
 }
 
@@ -329,16 +346,22 @@ static void delete_account_password(gpointer data, gpointer user_data)
             "username" , purple_account_get_username(account),
             NULL);
 
-    if (error != NULL) {
-        /* purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "Could not read password.", NULL, NULL, NULL); */
-        purple_notify_error(gnome_keyring_plugin, "Password error!", "Password error!", "Could not read password!");
+    const char* protocol_name = purple_account_get_protocol_name(account);
+
+    if(error != NULL)
+    {
+        print_protocol_error_message(protocol_name, "Could not read password to store it in messanger", error->message);
         g_error_free(error);
-    } else if (password == NULL) {
-        purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Password error!", "No password found.", NULL, NULL, NULL);
-    } else {
+    }
+    else if(password == NULL)
+    {
+        print_protocol_error_message(protocol_name, "Password is empty and cannot be stored in messanger", NULL);
+    }
+    else
+    {
         purple_account_set_password(account, password);
         secret_password_free (password);
-        secret_password_clear (PURPLE_SCHEMA, NULL, on_password_deleted, NULL,
+        secret_password_clear (PURPLE_SCHEMA, NULL, on_password_deleted, (gpointer*) protocol_name,
                 "protocol" , purple_account_get_protocol_id(account),
                 "username" , purple_account_get_username(account),
                 NULL);
@@ -352,18 +375,9 @@ static void delete_all_passwords(PurplePluginAction *action)
     gpointer user_data  = NULL;
     GList *accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, delete_account_password, user_data);
-    purple_notify_message(gnome_keyring_plugin, PURPLE_NOTIFY_MSG_INFO, "Gnome Keyring", "Deleted all passwords from Keyring", NULL, NULL, NULL);
+
+    purple_notify_info(gnome_keyring_plugin, "Gnome Keyring Info", "Finished deleting of passwords from keyring", NULL);
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -397,9 +411,14 @@ static GList *plugin_actions(PurplePlugin *plugin, gpointer context)
     GList *list                 = NULL;
     PurplePluginAction *action  = NULL;
 
-    action  = purple_plugin_action_new("Save all passwords to keyring", save_all_passwords);
+    char msg[255] = "Save all passwords to keyring: ";
+    strcat(msg, purple_prefs_get_string(KEYRING_NAME_PREF));
+    action  = purple_plugin_action_new(msg, save_all_passwords);
     list    = g_list_append(list, action);
-    action  = purple_plugin_action_new("Delete all passwords from keyring", delete_all_passwords);
+
+    strncpy(msg, "Delete all passwords from keyring: ", sizeof(msg));
+    strcat(msg, purple_prefs_get_string(KEYRING_NAME_PREF));
+    action  = purple_plugin_action_new(msg, delete_all_passwords);
     list    = g_list_append(list, action);
 
     return list;
@@ -419,7 +438,7 @@ static gboolean plugin_load(PurplePlugin *plugin)
 
     GList *accounts = NULL;
     accounts = purple_accounts_get_all();
-    g_list_foreach(accounts, get_account_password, NULL);
+    g_list_foreach(accounts, get_account_password_sync, NULL);
 
     void *accounts_handle = purple_accounts_get_handle();
 
@@ -447,8 +466,7 @@ static PurplePluginPrefFrame* get_plugin_pref_frame(PurplePlugin *plugin)
     ppref = purple_plugin_pref_new_with_label("Gnome Keyring settings");
     purple_plugin_pref_frame_add(frame, ppref);
 
-
-    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_NAME_PREF,"Gnome Keyring name:" );
+    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_NAME_PREF,"Gnome Keyring name: " );
     purple_plugin_pref_frame_add(frame, ppref);
 
     ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_AUTO_SAVE_PREF, "Save new passwords to Gnome Keyring" );
