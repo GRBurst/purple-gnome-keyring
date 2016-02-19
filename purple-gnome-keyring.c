@@ -72,9 +72,9 @@ static void print_error_message(char* prim_msg, char* sec_msg)
 static void print_protocol_error_message(const char* protocol_name, char* prim_msg, char* sec_msg)
 {
 
-    char msg[255] = "";
+    char msg[255] = "Error in ";
     strcat(msg, protocol_name);
-    strcat(msg, " account error: ");
+    strcat(msg, " account: ");
     strcat(msg, prim_msg);
 
     purple_notify_error(gnome_keyring_plugin,
@@ -209,7 +209,7 @@ static void on_got_service(GObject *source,
 
     if (error != NULL)
     {
-        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not connet any service", error->message);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not connect any service", error->message);
         g_error_free (error);
     }
     else
