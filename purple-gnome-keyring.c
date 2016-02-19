@@ -79,7 +79,7 @@ static void print_protocol_error_message(const char* protocol_name, char* prim_m
 
     purple_notify_error(gnome_keyring_plugin,
             "Gnome Keyring Plugin Error",
-            prim_msg,
+            msg,
             sec_msg);
 }
 
