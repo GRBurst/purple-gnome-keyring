@@ -103,7 +103,10 @@ static void on_item_created(GObject *source,
         g_error_free (error);
     }
     else
+    {
+        purple_account_set_remember_password((PurpleAccount*) user_data, FALSE);
         g_object_unref(item);
+    }
 }
 
 // Finally store password in the keyring
