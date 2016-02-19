@@ -1,9 +1,5 @@
-#ifndef PURPLE_PLUGINS
-#define PURPLE_PLUGINS
-#endif
-
 #ifndef VERSION
-#define VERSION "0.7.0"
+#define VERSION "0.8.0"
 #endif
 
 #include <glib.h>
@@ -15,6 +11,10 @@
 # else
 #  define G_GNUC_NULL_TERMINATED
 # endif
+#endif
+
+#ifndef PURPLE_PLUGINS
+# define PURPLE_PLUGINS
 #endif
 
 #include <notify.h>
@@ -437,7 +437,7 @@ static gboolean plugin_load(PurplePlugin *plugin)
     gnome_keyring_plugin = plugin;
 
     GList *accounts = NULL;
-    accounts = purple_accounts_get_all();
+    accounts = purple_accounts_get_all_active();
     g_list_foreach(accounts, get_account_password_sync, NULL);
 
     void *accounts_handle = purple_accounts_get_handle();
