@@ -1,5 +1,5 @@
 #ifndef VERSION
-#define VERSION "0.8.5"
+#define VERSION "0.8.4"
 #endif
 
 #include <glib.h>
