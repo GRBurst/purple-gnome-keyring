@@ -460,23 +460,20 @@ static gboolean plugin_load(PurplePlugin *plugin)
     void* core_handle = purple_get_core();
     purple_signal_connect(core_handle, "quitting",  plugin, PURPLE_CALLBACK(core_quitting), NULL);
 
+    /* Accounts subsystem signals */
+    if(purple_prefs_get_bool(KEYRING_AUTO_SAVE_PREF))
+    {
+        void *accounts_handle = purple_accounts_get_handle();
+        purple_signal_connect(accounts_handle, "account-added",     plugin, PURPLE_CALLBACK(account_added),     NULL);
+        purple_signal_connect(accounts_handle, "account-removed",   plugin, PURPLE_CALLBACK(account_removed),   NULL);
+        purple_signal_connect(accounts_handle, "account-set-info",  plugin, PURPLE_CALLBACK(account_changed),   NULL);
+    }
+
     if(purple_prefs_get_bool(KEYRING_PLUG_STATE_PREF))
     {
-
         GList *accounts = NULL;
         accounts = purple_accounts_get_all_active();
         g_list_foreach(accounts, get_account_password_sync, NULL);
-
-        /* Accounts subsystem signals */
-        if(purple_prefs_get_bool(KEYRING_AUTO_SAVE_PREF))
-        {
-            void *accounts_handle = purple_accounts_get_handle();
-            purple_signal_connect(accounts_handle, "account-added",     plugin, PURPLE_CALLBACK(account_added),     NULL);
-            purple_signal_connect(accounts_handle, "account-removed",   plugin, PURPLE_CALLBACK(account_removed),   NULL);
-            purple_signal_connect(accounts_handle, "account-set-info",  plugin, PURPLE_CALLBACK(account_changed),   NULL);
-        }
-
-
     }
     else
     {
