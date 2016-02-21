@@ -1,5 +1,5 @@
 #ifndef VERSION
-#define VERSION "0.8.4"
+#define VERSION "0.8.5"
 #endif
 
 #include <glib.h>
@@ -62,7 +62,7 @@ const SecretSchema* get_purple_schema (void)
 }
 
 // Unified Error messages
-static void print_protocol_error_message(const gchar* protocol_name, gchar* prim_msg, gchar* sec_msg)
+static void print_protocol_error_message(const gchar* protocol_name, gchar* prim_msg, GError* error)
 {
     GString *msg = g_string_new(NULL);
     g_string_append_printf(msg, "Error in %s account: %s", protocol_name, prim_msg);
@@ -70,8 +70,9 @@ static void print_protocol_error_message(const gchar* protocol_name, gchar* prim
     purple_notify_error(gnome_keyring_plugin,
             "Gnome Keyring Plugin Error",
             msg->str,
-            sec_msg);
-    /* g_string_free(msg, FALSE); */
+            error->message);
+    g_error_free(error);
+    g_string_free(msg, TRUE);
 }
 
 static void print_protocol_info_message(const gchar* protocol_name, gchar* prim_msg)
@@ -80,10 +81,10 @@ static void print_protocol_info_message(const gchar* protocol_name, gchar* prim_
     g_string_append_printf(msg, "%s account: %s", protocol_name, prim_msg);
 
     purple_notify_info(gnome_keyring_plugin,
-            "Gnome Keyring Plugin Error",
+            "Gnome Keyring Plugin Info",
             msg->str,
             NULL);
-    /* g_string_free(msg, FALSE); */
+    g_string_free(msg, TRUE);
 }
 
 
@@ -102,8 +103,7 @@ static void on_item_created(GObject *source,
 
     if (error != NULL)
     {
-        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Error saving passwort to keyring", error->message);
-        g_error_free(error);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Error saving passwort to keyring", error);
     }
     else
     {
@@ -149,8 +149,7 @@ static void on_alias_collection_load(GObject *source,
 
     if(error != NULL)
     {
-        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load default keyring", error->message);
-        g_error_free(error);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load default keyring", error);
     }
     else
     {
@@ -172,8 +171,7 @@ static void on_service_collections_load(GObject *source,
 
     if (error != NULL)
     {
-        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load given keyring", error->message);
-        g_error_free(error);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not load given keyring", error);
     }
     else if(success)
     {
@@ -183,7 +181,10 @@ static void on_service_collections_load(GObject *source,
 
         if (!collections)
         {
-            print_protocol_error_message(purple_account_get_protocol_name(account), "Could not load keyrings", "Check if DBus in running");
+            purple_notify_error(gnome_keyring_plugin,
+                    "Gnome Keyring Plugin Error",
+                    "Could not load keyrings",
+                    "Check if DBus in running");
             return;
         }
 
@@ -218,12 +219,11 @@ static void on_got_service(GObject *source,
 
     if (error != NULL)
     {
-        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not connect any service", error->message);
-        g_error_free(error);
+        print_protocol_error_message(purple_account_get_protocol_name((PurpleAccount*) user_data), "Could not connect any service", error);
     }
     else
     {
-        if(strcmp(purple_prefs_get_string(KEYRING_NAME_PREF), KEYRING_NAME_DEFAULT))
+        if(strcmp(purple_prefs_get_string(KEYRING_NAME_PREF), KEYRING_NAME_DEFAULT)) // != default
             secret_service_load_collections(service, NULL, on_service_collections_load, user_data);
         else
             secret_collection_for_alias(service, KEYRING_NAME_DEFAULT, SECRET_COLLECTION_NONE, NULL, on_alias_collection_load, user_data);
@@ -233,6 +233,8 @@ static void on_got_service(GObject *source,
 // Begin storing pipeline
 static void service_store_account_password(gpointer data, gpointer user_data)
 {
+
+    if(data == NULL) return;
 
     PurpleAccount *account = (PurpleAccount*) data;
 
@@ -271,8 +273,7 @@ static void on_password_lookup (GObject *source,
 
     if (error != NULL)
     {
-        print_protocol_error_message((gchar*)(user_data), "Could not read password", error->message);
-        g_error_free(error);
+        print_protocol_error_message((gchar*)(user_data), "Could not read password", error);
     }
     else if (password == NULL)
     {
@@ -301,8 +302,7 @@ static void get_account_password_sync(gpointer data, gpointer user_data)
 
         if (error != NULL)
         {
-            print_protocol_error_message(purple_account_get_protocol_name(account), "Could not read password", error->message);
-            g_error_free(error);
+            print_protocol_error_message(purple_account_get_protocol_name(account), "Could not read password", error);
         }
         else if (password == NULL)
         {
@@ -337,8 +337,7 @@ static void on_password_deleted(GObject *source,
     secret_password_clear_finish(result, &error);
     if(error != NULL)
     {
-        print_protocol_error_message((gchar*)(user_data), "Could not delete password to store it in messanger", error->message);
-        g_error_free(error);
+        print_protocol_error_message((gchar*)(user_data), "Could not delete password to store it in messanger", error);
     }
 }
 
@@ -356,8 +355,7 @@ static void delete_account_password(gpointer data, gpointer user_data)
 
     if(error != NULL)
     {
-        print_protocol_error_message(protocol_name, "Could not read password to store it in messanger", error->message);
-        g_error_free(error);
+        print_protocol_error_message(protocol_name, "Could not read password to store it in messanger", error);
     }
     else if(password == NULL)
     {
