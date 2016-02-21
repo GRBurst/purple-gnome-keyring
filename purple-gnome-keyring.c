@@ -364,6 +364,7 @@ static void delete_account_password(gpointer data, gpointer user_data)
     else
     {
         purple_account_set_password(account, password);
+        purple_account_set_remember_password(account);
         secret_password_free(password);
         secret_password_clear (PURPLE_SCHEMA, NULL, on_password_deleted, (gpointer*) protocol_name,
                 "protocol" , purple_account_get_protocol_id(account),
