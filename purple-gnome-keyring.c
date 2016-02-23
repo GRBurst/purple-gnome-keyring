@@ -1,5 +1,5 @@
 #ifndef VERSION
-#define VERSION "0.9.1"
+#define VERSION "1.0.0"
 #endif
 
 #include <glib.h>
@@ -34,14 +34,16 @@
 
 /* Preferences */
 #define PLUGIN_ID "core-grburst-purple_gnome_keyring"
-#define KEYRING_CUSTOM_NAME_PREF "/plugins/core/purple_gnome_keyring/use_custom_keyring"
-#define KEYRING_CUSTOM_NAME_DEFAULT FALSE
-#define KEYRING_NAME_PREF "/plugins/core/purple_gnome_keyring/keyring_name"
-#define KEYRING_NAME_DEFAULT SECRET_COLLECTION_DEFAULT
-#define KEYRING_AUTO_SAVE_PREF "/plugins/core/purple_gnome_keyring/auto_save"
-#define KEYRING_AUTO_SAVE_DEFAULT TRUE
 #define KEYRING_PLUG_STATE_PREF "/plugins/core/purple_gnome_keyring/plug_state"
 #define KEYRING_PLUG_STATE_DEFAULT FALSE
+#define KEYRING_CUSTOM_NAME_PREF "/plugins/core/purple_gnome_keyring/custom_keyring"
+#define KEYRING_CUSTOM_NAME_DEFAULT FALSE
+#define KEYRING_NAME_PREF "/plugins/core/purple_gnome_keyring/custom_keyring/keyring_name"
+#define KEYRING_NAME_DEFAULT ""
+#define KEYRING_AUTO_SAVE_PREF "/plugins/core/purple_gnome_keyring/auto_save"
+#define KEYRING_AUTO_SAVE_DEFAULT TRUE
+#define KEYRING_AUTO_LOCK_PREF "/plugins/core/purple_gnome_keyring/auto_lock"
+#define KEYRING_AUTO_LOCK_DEFAULT FALSE
 
 // Plugin handles
 const SecretSchema* get_purple_schema (void) G_GNUC_CONST;
@@ -52,6 +54,7 @@ const SecretSchema* get_purple_schema (void) G_GNUC_CONST;
 
 PurplePlugin* gnome_keyring_plugin  = NULL;
 SecretCollection* plugin_collection = NULL;
+SecretService* plugin_service       = NULL;
 
 /**************************************************
  **************************************************
@@ -115,18 +118,18 @@ static void print_protocol_error_message(const gchar* protocol_name, gchar* prim
     g_string_free(msg, TRUE);
 }
 
-// Unified inof messages
-static void print_protocol_info_message(const gchar* protocol_name, gchar* prim_msg)
-{
-    GString* msg = g_string_new(NULL);
-    g_string_append_printf(msg, "%s account: %s", protocol_name, prim_msg);
+// Unified info messages
+/* static void print_protocol_info_message(const gchar* protocol_name, gchar* prim_msg) */
+/* { */
+/*     GString* msg = g_string_new(NULL); */
+/*     g_string_append_printf(msg, "%s account: %s", protocol_name, prim_msg); */
 
-    dialog(PURPLE_NOTIFY_MSG_INFO,
-            msg->str,
-            NULL);
+/*     dialog(PURPLE_NOTIFY_MSG_INFO, */
+/*             msg->str, */
+/*             NULL); */
 
-    g_string_free(msg, TRUE);
-}
+/*     g_string_free(msg, TRUE); */
+/* } */
 
 
 /**************************************************
@@ -142,7 +145,7 @@ static SecretCollection* get_collection(SecretService* service)
     const gchar* collection_name    = purple_prefs_get_string(KEYRING_NAME_PREF);
 
     // Check if user defined a different collection name (not the alias default)
-    if(strcmp(collection_name, KEYRING_NAME_DEFAULT) != 0)
+    if(purple_prefs_get_bool(KEYRING_CUSTOM_NAME_PREF))
     {
 
         GList* collections = secret_service_get_collections(service);
@@ -184,6 +187,85 @@ static SecretCollection* get_collection(SecretService* service)
     return collection;
 }
 
+// lock collection
+static gboolean lock_collection()
+{
+    gboolean was_unlocked = FALSE;
+
+    if((plugin_collection != NULL) && (!secret_collection_get_locked(plugin_collection)))
+    {
+        was_unlocked = TRUE;
+
+        GError* error   = NULL;
+        GList* unlocked_collections   = NULL;
+        unlocked_collections = g_list_append(unlocked_collections, plugin_collection);
+
+        GList* locked_collections = NULL;
+
+        secret_service_lock_sync(
+                plugin_service,
+                unlocked_collections,
+                NULL,
+                &locked_collections,
+                &error);
+
+        if(error != NULL)
+        {
+            dialog( PURPLE_NOTIFY_MSG_ERROR, "Could not unlock Gnome Keyring.", error->message);
+            g_error_free(error);
+        }
+        else if(locked_collections != NULL)
+        {
+            plugin_collection = locked_collections->data;
+            g_list_free(locked_collections);
+        }
+
+        g_list_free(unlocked_collections);
+
+    }
+
+    return was_unlocked;
+}
+
+// unlock collection
+static gboolean unlock_collection()
+{
+    gboolean was_locked = FALSE;
+
+    if((plugin_collection != NULL) && (secret_collection_get_locked(plugin_collection)))
+    {
+        was_locked = TRUE;
+        GList* locked_collections   = NULL;
+        locked_collections = g_list_append(locked_collections, plugin_collection);
+
+        GError* error   = NULL;
+        GList* unlocked_collections = NULL;
+
+        secret_service_unlock_sync(
+                plugin_service,
+                locked_collections,
+                NULL,
+                &unlocked_collections,
+                &error);
+
+        if(error != NULL)
+        {
+            dialog( PURPLE_NOTIFY_MSG_ERROR, "Could not unlock Gnome Keyring.", error->message);
+            g_error_free(error);
+        }
+        else if(unlocked_collections != NULL)
+        {
+            plugin_collection = unlocked_collections->data;
+            g_list_free(unlocked_collections);
+        }
+
+        g_list_free(locked_collections);
+
+    }
+
+    return was_locked;
+
+}
 
 
 // Init collection
@@ -199,41 +281,12 @@ static void init_collection()
     }
     else
     {
+        plugin_service = service;
         SecretCollection* collection = get_collection(service);
 
         if(collection != NULL)
         {
-            if(secret_collection_get_locked(collection))
-            {
-                GList* locked_collections   = NULL;
-                locked_collections = g_list_append(locked_collections, collection);
-
-                GList* unlocked_collections = NULL;
-
-                secret_service_unlock_sync(
-                        service,
-                        locked_collections,
-                        NULL,
-                        &unlocked_collections,
-                        &error);
-
-                if(error != NULL)
-                {
-                    dialog( PURPLE_NOTIFY_MSG_ERROR, "Could not unlock Gnome Keyring.", error->message);
-                    g_error_free(error);
-                }
-                else if(unlocked_collections != NULL)
-                {
-                    collection = unlocked_collections->data;
-                    g_list_free(unlocked_collections);
-                }
-
-                g_list_free(locked_collections);
-
-            }
-
             plugin_collection = collection;
-
         }
         else
             dialog( PURPLE_NOTIFY_MSG_ERROR, "Could not load collection.", NULL);
@@ -244,6 +297,7 @@ static void init_collection()
     }
 
     g_object_unref(service);
+
 }
 
 /**************************************************
@@ -282,11 +336,14 @@ static void on_item_created(GObject* source,
         purple_account_set_remember_password(account, FALSE);
         g_object_unref(item);
     }
+
+    /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
 }
 
 // Store password in the keyring
 static void store_account_password(gpointer data, gpointer user_data)
 {
+    unlock_collection();
     PurpleAccount* account = (PurpleAccount*) data;
     GHashTable* attributes = get_attributes(account);
 
@@ -320,6 +377,7 @@ static void load_account_password(gpointer data, gpointer user_data)
     if(!purple_account_get_remember_password(account))
     {
 
+        unlock_collection();
         GHashTable* attributes = get_attributes(account);
         purple_debug_info(PLUGIN_ID, "Debug info. Loading password %s with username %s\n", account->protocol_id, account->username);
         // Make in synchronously to prevent asks for password dialogs
@@ -355,6 +413,7 @@ static void load_account_password(gpointer data, gpointer user_data)
         }
 
         g_hash_table_destroy(attributes);
+        /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
 
     }
 
@@ -387,6 +446,7 @@ static void on_password_deleted(GObject* source,
         else  purple_debug_info(PLUGIN_ID, "Could not detete password for %s, but no error occured", account->protocol_id);
     }
 
+    /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
 }
 
 // Delete from collection
@@ -434,6 +494,7 @@ static void delete_account_password(gpointer data, gpointer user_data)
     purple_account_set_remember_password(account, FALSE);
     GHashTable* attributes = get_attributes(account);
 
+    unlock_collection();
     secret_collection_search(plugin_collection,
             PURPLE_SCHEMA,
             attributes,
@@ -458,6 +519,7 @@ static void save_all_passwords(PurplePluginAction* action)
     gpointer user_data  = NULL;
     GList* accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, store_account_password, user_data);
+    /* g_list_free(accounts); */
     /* purple_notify_info(gnome_keyring_plugin, "Gnome Keyring Info", "Finished saving of passwords to keyring"); */
 }
 
@@ -491,19 +553,27 @@ static void service_set_account_password(PurpleAccount* account, const char* use
 static void account_added(PurpleAccount* account, gpointer data)
 {
     store_account_password(account , NULL);
+    purple_debug_info(PLUGIN_ID, "Added %s with username %s\n", account->protocol_id, account->username);
 }
 
 // Signal account removed action
 static void account_removed(PurpleAccount* account, gpointer data)
 {
     delete_account_password(account, NULL);
+    purple_debug_info(PLUGIN_ID, "Deleted %s with username %s\n", account->protocol_id, account->username);
 }
 
 // Account enabled
 static void account_enabled(PurpleAccount* account, gpointer data)
 {
     load_account_password(account, NULL);
-    purple_debug_info(PLUGIN_ID, "Debug info. Enabled %s with username %s\n", account->protocol_id, account->username);
+    purple_debug_info(PLUGIN_ID, "Enabled %s with username %s\n", account->protocol_id, account->username);
+}
+
+// Account disabled
+static void account_disabled(PurpleAccount* account, gpointer data)
+{
+    purple_debug_info(PLUGIN_ID, "Disabled %s with username %s\n", account->protocol_id, account->username);
 }
 
 // Account signed on
@@ -553,8 +623,15 @@ static void account_connection_error(PurpleAccount* account, PurpleConnectionErr
                 );
 
     }
+    else if( err == PURPLE_CONNECTION_ERROR_NETWORK_ERROR)
+    {
+        load_account_password(account, NULL);
+        purple_debug_info(PLUGIN_ID, "Enabled %s with username %s\n", account->protocol_id, account->username);
+    }
+
 }
 
+// Core quitting
 static void core_quitting(gpointer data)
 {
     purple_prefs_set_bool(KEYRING_PLUG_STATE_PREF, TRUE);
@@ -585,22 +662,62 @@ static GList* plugin_actions(PurplePlugin* plugin, gpointer context)
     return list;
 }
 
-// Unload plugin
-static gboolean plugin_unload(PurplePlugin* plugin)
-{
-    purple_signals_disconnect_by_handle(plugin);
-    g_object_unref(plugin_collection);
-    secret_service_disconnect();
+// preference callback
+/* static void custom_name_changed(const char *name, PurplePrefType type, gconstpointer val, gpointer data) */
+/* { */
+/*     purple_debug_info(PLUGIN_ID, "custom name pref changed: name = %s, type = %i\n", name, type); */
+/* } */
 
-    return TRUE;
+// Plugin preference window
+static PurplePluginPrefFrame* get_plugin_pref_frame(PurplePlugin* plugin)
+{
+    g_return_val_if_fail(plugin != NULL, FALSE);
+
+    PurplePluginPrefFrame* frame;
+    PurplePluginPref* ppref;
+
+    frame = purple_plugin_pref_frame_new();
+
+    ppref = purple_plugin_pref_new_with_label("Gnome Keyring settings");
+    purple_plugin_pref_frame_add(frame, ppref);
+
+    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_CUSTOM_NAME_PREF, "Use custom keyring (not default). You must check this box to use the <Gnome Keyring name> option below" );
+    purple_plugin_pref_frame_add(frame, ppref);
+
+    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_NAME_PREF,"Gnome Keyring name: " );
+    purple_plugin_pref_frame_add(frame, ppref);
+
+    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_AUTO_SAVE_PREF, "Save new passwords to Gnome Keyring" );
+    purple_plugin_pref_frame_add(frame, ppref);
+
+    ppref = purple_plugin_pref_new_with_name_and_label(KEYRING_AUTO_LOCK_PREF, "Lock keyring when closing messanger passwords?");
+    purple_plugin_pref_frame_add(frame, ppref);
+
+    return frame;
+
+}
+
+/* static void enable_account(gpointer data, gpointer user_data) */
+/* { */
+/*     PurpleAccount* account = (PurpleAccount*) data; */
+/*     purple_request_close_with_handle(account); */
+/*     load_account_password(account, NULL); */
+/*     purple_account_set_enabled(account, purple_core_get_ui(), TRUE); */
+/* } */
+
+static void disable_account(gpointer data, gpointer user_data)
+{
+    PurpleAccount* account = (PurpleAccount*) data;
+    purple_account_set_enabled(account, purple_core_get_ui(), FALSE);
+    purple_request_close_with_handle(account);
 }
 
 // Load plugin
 static gboolean plugin_load(PurplePlugin* plugin)
 {
-    // Load collection when plugin is activated
     gnome_keyring_plugin = plugin;
-    init_collection();
+    GList *accounts = NULL;
+    accounts = purple_accounts_get_all_active();
 
     // Handles
     void* core_handle = purple_get_core();
@@ -611,6 +728,7 @@ static gboolean plugin_load(PurplePlugin* plugin)
 
     /* Accounts subsystem signals */
     purple_signal_connect(accounts_handle, "account-enabled",       plugin, PURPLE_CALLBACK(account_enabled),       NULL);
+    purple_signal_connect(accounts_handle, "account-disabled",       plugin, PURPLE_CALLBACK(account_disabled),       NULL);
     purple_signal_connect(accounts_handle, "account-signed-on",     plugin, PURPLE_CALLBACK(account_signed_on),     NULL);
     purple_signal_connect(accounts_handle, "account-connection-error",  plugin, PURPLE_CALLBACK(account_connection_error), NULL);
 
@@ -620,18 +738,22 @@ static gboolean plugin_load(PurplePlugin* plugin)
         purple_signal_connect(accounts_handle, "account-removed",   plugin, PURPLE_CALLBACK(account_removed),   NULL);
     }
 
+    // Load collection when plugin is activated
+    init_collection();
+    gboolean was_locked = unlock_collection();
+
     if(purple_prefs_get_bool(KEYRING_PLUG_STATE_PREF))
     {
-        GList *accounts = NULL;
-        accounts = purple_accounts_get_all_active();
+        if(was_locked) g_list_foreach(accounts, disable_account, NULL);
         g_list_foreach(accounts, load_account_password, NULL);
+        /* g_list_foreach(accounts, enable_account, NULL); */
     }
     else
     {
         purple_request_action (plugin,
                 "Gnome Keyring",
                 "Do you want to move your passwords to the keyring?",
-                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin",
+                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n (Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) Pidgin crashed",
                 0,
                 NULL,
                 NULL,
@@ -645,40 +767,31 @@ static gboolean plugin_load(PurplePlugin* plugin)
                 );
     }
 
+    /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
     purple_prefs_set_bool(KEYRING_PLUG_STATE_PREF, FALSE);
+
+    // Pref callbacks
+    /* purple_prefs_connect_callback(plugin, KEYRING_CUSTOM_NAME_PREF, (PurplePrefCallback)custom_name_changed, NULL); */
+    /* purple_prefs_trigger_callback(KEYRING_CUSTOM_NAME_PREF); */
+
+    return TRUE;
+}
+
+// Unload plugin
+static gboolean plugin_unload(PurplePlugin* plugin)
+{
+    purple_signals_disconnect_by_handle(plugin);
+    purple_prefs_disconnect_by_handle(plugin);
+
+    if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection();
+    g_object_unref(plugin_collection);
+    g_object_unref(plugin_service);
+    secret_service_disconnect();
 
     return TRUE;
 }
 
 
-// Plugin preference window
-static PurplePluginPrefFrame* get_plugin_pref_frame(PurplePlugin* plugin)
-{
-    PurplePluginPrefFrame* frame;
-    PurplePluginPref* ppref;
-
-    g_return_val_if_fail(plugin != NULL, FALSE);
-
-    frame = purple_plugin_pref_frame_new();
-
-    ppref = purple_plugin_pref_new_with_label("Gnome Keyring settings");
-    purple_plugin_pref_frame_add(frame, ppref);
-
-    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_CUSTOM_NAME_PREF, "Use custom keyring (not default)" );
-    purple_plugin_pref_frame_add(frame, ppref);
-
-    if(purple_prefs_get_bool(KEYRING_CUSTOM_NAME_PREF))
-    {
-        ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_NAME_PREF,"Gnome Keyring name: " );
-        purple_plugin_pref_frame_add(frame, ppref);
-    }
-
-    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_AUTO_SAVE_PREF, "Save new passwords to Gnome Keyring" );
-    purple_plugin_pref_frame_add(frame, ppref);
-
-
-    return frame;
-}
 
 // Preference info
 static PurplePluginUiInfo prefs_info = {
@@ -701,7 +814,6 @@ static PurplePluginInfo info = {
     0,                          /* flags */
     NULL,                       /* GList of plugin dependencies */
     PURPLE_PRIORITY_HIGHEST,
-    /* PURPLE_PRIORITY_DEFAULT, */
     PLUGIN_ID,
     "Gnome Keyring Plugin",
     VERSION,
@@ -728,8 +840,13 @@ static void init_plugin(PurplePlugin *plugin)
     purple_prefs_add_none("/plugins/core/purple_gnome_keyring");
     purple_prefs_add_bool(KEYRING_CUSTOM_NAME_PREF, KEYRING_CUSTOM_NAME_DEFAULT);
     purple_prefs_add_string(KEYRING_NAME_PREF, KEYRING_NAME_DEFAULT);
+
     purple_prefs_add_bool(KEYRING_AUTO_SAVE_PREF, KEYRING_AUTO_SAVE_DEFAULT);
+    purple_prefs_add_bool(KEYRING_AUTO_LOCK_PREF, KEYRING_AUTO_LOCK_DEFAULT);
+
     purple_prefs_add_bool(KEYRING_PLUG_STATE_PREF, KEYRING_PLUG_STATE_DEFAULT);
+
+    purple_prefs_remove("/plugins/core/purple_gnome_keyring/keyring_name");
 }
 
 PURPLE_INIT_PLUGIN(gnome_keyring, init_plugin, info)
