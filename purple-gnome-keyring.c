@@ -142,12 +142,12 @@ static SecretCollection* get_collection(SecretService* service)
 {
 
     SecretCollection* collection    = NULL;
-    const gchar* collection_name    = purple_prefs_get_string(KEYRING_NAME_PREF);
 
     // Check if user defined a different collection name (not the alias default)
     if(purple_prefs_get_bool(KEYRING_CUSTOM_NAME_PREF))
     {
 
+        const gchar* collection_name    = purple_prefs_get_string(KEYRING_NAME_PREF);
         GList* collections = secret_service_get_collections(service);
 
         if (!collections)
@@ -172,7 +172,7 @@ static SecretCollection* get_collection(SecretService* service)
     {
         GError* error   = NULL;
         collection      = secret_collection_for_alias_sync(service,
-                KEYRING_NAME_DEFAULT,
+                SECRET_COLLECTION_DEFAULT,
                 SECRET_COLLECTION_LOAD_ITEMS,
                 NULL,
                 &error);
@@ -649,13 +649,15 @@ static GList* plugin_actions(PurplePlugin* plugin, gpointer context)
     GList* list                 = NULL;
     PurplePluginAction* action  = NULL;
 
+    const gchar* name = (purple_prefs_get_bool(KEYRING_CUSTOM_NAME_PREF) ? purple_prefs_get_string(KEYRING_NAME_PREF) : "(default)");
+
     gchar msg[255] = "Save all passwords to keyring: ";
-    strcat(msg, purple_prefs_get_string(KEYRING_NAME_PREF));
+    strcat(msg, name);
     action  = purple_plugin_action_new(msg, save_all_passwords);
     list    = g_list_append(list, action);
 
     strncpy(msg, "Delete all passwords from keyring: ", sizeof(msg));
-    strcat(msg, purple_prefs_get_string(KEYRING_NAME_PREF));
+    strcat(msg, name);
     action  = purple_plugin_action_new(msg, delete_all_passwords);
     list    = g_list_append(list, action);
 
@@ -681,7 +683,7 @@ static PurplePluginPrefFrame* get_plugin_pref_frame(PurplePlugin* plugin)
     ppref = purple_plugin_pref_new_with_label("Gnome Keyring settings");
     purple_plugin_pref_frame_add(frame, ppref);
 
-    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_CUSTOM_NAME_PREF, "Use custom keyring (not default). You must check this box to use the <Gnome Keyring name> option below" );
+    ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_CUSTOM_NAME_PREF, "Use custom keyring (not default).\nYou must check this box to use the <Gnome Keyring name> option below" );
     purple_plugin_pref_frame_add(frame, ppref);
 
     ppref = purple_plugin_pref_new_with_name_and_label( KEYRING_NAME_PREF,"Gnome Keyring name: " );
@@ -753,7 +755,7 @@ static gboolean plugin_load(PurplePlugin* plugin)
         purple_request_action (plugin,
                 "Gnome Keyring",
                 "Do you want to move your passwords to the keyring?",
-                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n (Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) Pidgin crashed",
+                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n\n(Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) Your messager (Pidgin, Finch, ...) crashed",
                 0,
                 NULL,
                 NULL,
