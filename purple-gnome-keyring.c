@@ -348,9 +348,8 @@ static void store_account_password(gpointer data, gpointer user_data)
     unlock_collection();
     PurpleAccount* account = (PurpleAccount*) data;
     GHashTable* attributes = get_attributes(account);
-    gchar label[255];
+    gchar label[255] = "Purple account password: ";
     strcat(label, purple_account_get_protocol_name(account));
-    strcat(label, "Purple account password");
 
     purple_debug_info(PLUGIN_ID, "Debug info. Storing %s password with username %s\n", account->protocol_id, account->username);
     secret_item_create(plugin_collection,
@@ -638,7 +637,6 @@ static void account_connection_error(PurpleAccount* account, PurpleConnectionErr
 static void core_quitting(gpointer data)
 {
     purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, ENABLED);
-    printf("enabled\n");
 }
 
 /**************************************************
@@ -775,7 +773,6 @@ static gboolean plugin_load(PurplePlugin* plugin)
 
     /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
     purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, LOADED);
-    printf("loaded\n");
 
     // Pref callbacks
     /* purple_prefs_connect_callback(plugin, KEYRING_CUSTOM_NAME_PREF, (PurplePrefCallback)custom_name_changed, NULL); */
@@ -796,7 +793,6 @@ static gboolean plugin_unload(PurplePlugin* plugin)
     secret_service_disconnect();
 
     if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == LOADED) purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, UNLOADED);
-    printf("unloaded\n");
 
     return TRUE;
 }
