@@ -1,7 +1,7 @@
 # purple-gnome-keyring
 
-Plugin for your purple based instand messenger like Pidgin or Finch.
-This plugin seemlessly integrates the Gnome Keyring with your instant messanger. Therefore your password are stored securely - since Pidgin itself stores passwords in plaintext.
+Plugin for your purple based instant messenger like Pidgin or Finch.
+This plugin seemlessly integrates the Gnome Keyring with your instant messenger. Therefore your password are stored securely - since Pidgin itself stores passwords in plaintext.
 
 ## Usage
 ### Installation
@@ -19,22 +19,25 @@ This plugin seemlessly integrates the Gnome Keyring with your instant messanger.
 ## Progress
 ### Features
 - Store passwords in an abitrary keyring
-- Load passwords when plugin loaded
+- Load passwords from the same keyring
+- Automatically unlock keyring
+    - Prompt for a password if necessary
 - Move or delete all passwords to / from Gnome Keyring at once
     - Actions are available in menu: `Tools->Gnome Keyring Plugin`
-- Signal handling when account is created / deleted
+- Automatically save passwords to keyring if an account is created / deleted
     - If enabled in preferences, passwords of new accounts are automatically stored in the Gnome Keyring
+- Workaround to update password if password was changed
+- Automatically lock keyring if messenger gets closed (must be enabled in settings)
 
 ### TODO
 - Create Keyring if given keyringname does not exists
-- Signal handling when account password was changed
 
 ### Testing
 - Tested with Pidgin without any issues
 - Tested with Finch without any issues
 
 ## Known issues
-NONE
+- If you added a new keyring (e.g. with Seahorse), this keyring is not recognized. You must restart the keyring.
 
 ### Prevent issues
 - Make sure that Gnome Keyring is running
