@@ -1,5 +1,5 @@
 #ifndef VERSION
-#define VERSION "1.0.0"
+#define VERSION "1.0.2"
 #endif
 
 #include <glib.h>
@@ -32,10 +32,13 @@
 #include "util.h"
 #include "version.h"
 
+// Plug status
+typedef enum {ENABLED = 0, LOADED = 1, UNLOADED = 2} status_type;
+
 /* Preferences */
 #define PLUGIN_ID "core-grburst-purple_gnome_keyring"
-#define KEYRING_PLUG_STATE_PREF "/plugins/core/purple_gnome_keyring/plug_state"
-#define KEYRING_PLUG_STATE_DEFAULT FALSE
+#define KEYRING_PLUG_STATUS_PREF "/plugins/core/purple_gnome_keyring/plug_status"
+#define KEYRING_PLUG_STATUS_DEFAULT UNLOADED
 #define KEYRING_CUSTOM_NAME_PREF "/plugins/core/purple_gnome_keyring/custom_keyring"
 #define KEYRING_CUSTOM_NAME_DEFAULT FALSE
 #define KEYRING_NAME_PREF "/plugins/core/purple_gnome_keyring/custom_keyring/keyring_name"
@@ -355,7 +358,6 @@ static void store_account_password(gpointer data, gpointer user_data)
             secret_value_new(purple_account_get_password(account), -1, "text/plain"),
             SECRET_ITEM_CREATE_REPLACE,
             NULL,
-            /* NULL, */
             on_item_created,
             account
             );
@@ -540,7 +542,7 @@ static void delete_all_passwords(PurplePluginAction* action)
  **************************************************/
 
 // Account auth-failure helper
-static void service_set_account_password(PurpleAccount* account, const char* user_data)
+static void account_reset_password(PurpleAccount* account, const char* user_data)
 {
     if(user_data != NULL)
     {
@@ -603,7 +605,6 @@ static void account_connection_error(PurpleAccount* account, PurpleConnectionErr
     if( err == PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED )
     {
         purple_debug_info(PLUGIN_ID, "Debug info. Auth error\n");
-        delete_account_password(account, NULL);
         purple_request_input (gnome_keyring_plugin,
                 "Gnome Keyring",
                 "Could not connect to the server due to authetication failure.",
@@ -613,7 +614,7 @@ static void account_connection_error(PurpleAccount* account, PurpleConnectionErr
                 TRUE,
                 NULL,
                 "Save in keyring",
-                G_CALLBACK(service_set_account_password),
+                G_CALLBACK(account_reset_password),
                 "Cancel",
                 NULL,
                 account,
@@ -634,7 +635,8 @@ static void account_connection_error(PurpleAccount* account, PurpleConnectionErr
 // Core quitting
 static void core_quitting(gpointer data)
 {
-    purple_prefs_set_bool(KEYRING_PLUG_STATE_PREF, TRUE);
+    purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, ENABLED);
+    printf("enabled\n");
 }
 
 /**************************************************
@@ -744,18 +746,12 @@ static gboolean plugin_load(PurplePlugin* plugin)
     init_collection();
     gboolean was_locked = unlock_collection();
 
-    if(purple_prefs_get_bool(KEYRING_PLUG_STATE_PREF))
-    {
-        if(was_locked) g_list_foreach(accounts, disable_account, NULL);
-        g_list_foreach(accounts, load_account_password, NULL);
-        /* g_list_foreach(accounts, enable_account, NULL); */
-    }
-    else
+    if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == UNLOADED)
     {
         purple_request_action (plugin,
                 "Gnome Keyring",
                 "Do you want to move your passwords to the keyring?",
-                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n\n(Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) Your messager (Pidgin, Finch, ...) crashed",
+                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n\n(Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) You renabled this plugin",
                 0,
                 NULL,
                 NULL,
@@ -768,9 +764,16 @@ static gboolean plugin_load(PurplePlugin* plugin)
                 NULL
                 );
     }
+    else
+    {
+        if(was_locked) g_list_foreach(accounts, disable_account, NULL);
+        g_list_foreach(accounts, load_account_password, NULL);
+        /* g_list_foreach(accounts, enable_account, NULL); */
+    }
 
     /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
-    purple_prefs_set_bool(KEYRING_PLUG_STATE_PREF, FALSE);
+    purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, LOADED);
+    printf("loaded\n");
 
     // Pref callbacks
     /* purple_prefs_connect_callback(plugin, KEYRING_CUSTOM_NAME_PREF, (PurplePrefCallback)custom_name_changed, NULL); */
@@ -789,6 +792,9 @@ static gboolean plugin_unload(PurplePlugin* plugin)
     g_object_unref(plugin_collection);
     g_object_unref(plugin_service);
     secret_service_disconnect();
+
+    if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == LOADED) purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, UNLOADED);
+    printf("unloaded\n");
 
     return TRUE;
 }
@@ -846,9 +852,11 @@ static void init_plugin(PurplePlugin *plugin)
     purple_prefs_add_bool(KEYRING_AUTO_SAVE_PREF, KEYRING_AUTO_SAVE_DEFAULT);
     purple_prefs_add_bool(KEYRING_AUTO_LOCK_PREF, KEYRING_AUTO_LOCK_DEFAULT);
 
-    purple_prefs_add_bool(KEYRING_PLUG_STATE_PREF, KEYRING_PLUG_STATE_DEFAULT);
+    purple_prefs_add_int(KEYRING_PLUG_STATUS_PREF, KEYRING_PLUG_STATUS_DEFAULT);
 
     purple_prefs_remove("/plugins/core/purple_gnome_keyring/keyring_name");
+    purple_prefs_remove("/plugins/core/purple_gnome_keyring/plug_state");
+
 }
 
 PURPLE_INIT_PLUGIN(gnome_keyring, init_plugin, info)
