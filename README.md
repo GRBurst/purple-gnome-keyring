@@ -45,4 +45,4 @@ If you encounter any problems, please create an issue on GitHub.
 
 ### Preventing issues
 - Make sure that Gnome Keyring is running
-- Make sure thad DBUS in running
+- Make sure that DBUS in running
