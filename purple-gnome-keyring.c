@@ -348,8 +348,9 @@ static void store_account_password(gpointer data, gpointer user_data)
     unlock_collection();
     PurpleAccount* account = (PurpleAccount*) data;
     GHashTable* attributes = get_attributes(account);
-    gchar label[255] = purple_account_get_protocol_name(account);
-    strcat(label, ": Purple account password");
+    gchar label[255];
+    strcat(label, purple_account_get_protocol_name(account));
+    strcat(label, "Purple account password");
 
     purple_debug_info(PLUGIN_ID, "Debug info. Storing %s password with username %s\n", account->protocol_id, account->username);
     secret_item_create(plugin_collection,
