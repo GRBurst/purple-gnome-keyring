@@ -21,7 +21,6 @@
 #include <string.h>
 
 #include "account.h"
-#include "accountopt.h"
 #include "connection.h"
 #include "core.h"
 #include "debug.h"
@@ -54,7 +53,7 @@ const SecretSchema* get_purple_schema (void) G_GNUC_CONST;
 #define SECRET_SERVICE(inst) (G_TYPE_CHECK_INSTANCE_CAST ((inst), SECRET_TYPE_SERVICE, SecretService))
 #define SECRET_ITEM(inst) (G_TYPE_CHECK_INSTANCE_CAST ((inst), SECRET_TYPE_ITEM, SecretItem))
 
-
+// Vars
 PurplePlugin* gnome_keyring_plugin  = NULL;
 SecretCollection* plugin_collection = NULL;
 SecretService* plugin_service       = NULL;
@@ -349,12 +348,14 @@ static void store_account_password(gpointer data, gpointer user_data)
     unlock_collection();
     PurpleAccount* account = (PurpleAccount*) data;
     GHashTable* attributes = get_attributes(account);
+    gchar label[255] = purple_account_get_protocol_name(account);
+    strcat(label, ": Purple account password");
 
     purple_debug_info(PLUGIN_ID, "Debug info. Storing %s password with username %s\n", account->protocol_id, account->username);
     secret_item_create(plugin_collection,
             PURPLE_SCHEMA,
             attributes,
-            "Pidgin account password",
+            label,
             secret_value_new(purple_account_get_password(account), -1, "text/plain"),
             SECRET_ITEM_CREATE_REPLACE,
             NULL,
@@ -751,7 +752,7 @@ static gboolean plugin_load(PurplePlugin* plugin)
         purple_request_action (plugin,
                 "Gnome Keyring",
                 "Do you want to move your passwords to the keyring?",
-                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n\n(Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) You renabled this plugin",
+                "You can do this later by choosing the appropriate menu option in Tools->Gnome Keyring Plugin\n\n(Info) This dialog appears because: \n1.) This is the first time you are running this plugin\n2.) You reenabled this plugin",
                 0,
                 NULL,
                 NULL,
