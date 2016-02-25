@@ -1,5 +1,5 @@
 #ifndef VERSION
-#define VERSION "1.1.2"
+#define VERSION "1.1.3"
 #endif
 
 #include <glib.h>
@@ -348,14 +348,15 @@ static void store_account_password(gpointer data, gpointer user_data)
     unlock_collection();
     PurpleAccount* account = (PurpleAccount*) data;
     GHashTable* attributes = get_attributes(account);
-    gchar label[255] = "Purple account password: ";
-    strcat(label, purple_account_get_protocol_name(account));
+
+    GString *label = g_string_new(NULL);
+    g_string_append_printf(label, "Purple %s password for user: %s", purple_account_get_protocol_name(account), account->username);
 
     purple_debug_info(PLUGIN_ID, "Debug info. Storing %s password with username %s\n", account->protocol_id, account->username);
     secret_item_create(plugin_collection,
             PURPLE_SCHEMA,
             attributes,
-            label,
+            label->str,
             secret_value_new(purple_account_get_password(account), -1, "text/plain"),
             SECRET_ITEM_CREATE_REPLACE,
             NULL,
@@ -363,6 +364,7 @@ static void store_account_password(gpointer data, gpointer user_data)
             account
             );
 
+    g_string_free(label, FALSE);
     g_hash_table_destroy(attributes);
 
 }
