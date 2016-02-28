@@ -145,15 +145,66 @@ static void print_protocol_error_message(const gchar* protocol_name, gchar* prim
  *********** Collection initalization *************
  **************************************************
  **************************************************/
+static void on_init_item_loaded(GObject* source,
+                    GAsyncResult* result,
+                    gpointer user_data)
+{
+    PurpleAccount* account = (PurpleAccount*) user_data;
+
+    GError* error   = NULL;
+    GList* items    = secret_collection_search_finish(plugin_collection, result, &error);
+
+    if (error != NULL)
+    {
+        print_protocol_error_message(purple_account_get_protocol_name(account), "Could not read init password", error);
+        g_error_free(error);
+    }
+    else if (items == NULL)
+    {
+        purple_debug_info(PLUGIN_ID, "%s: Init password is empty - no password saved\n", account->protocol_id);
+    }
+    else
+    {
+        SecretItem* item    = items->data;
+        SecretValue* value  = secret_item_get_secret(item);
+
+        purple_debug_info(PLUGIN_ID, "Setting init password for %s with username %s\n", account->protocol_id, account->username);
+        purple_account_set_password(account, secret_value_get_text(value));
+
+        secret_value_unref(value);
+        g_object_unref(item);
+        g_list_free(items);
+    }
+
+    purple_request_close_with_handle(account);
+    purple_account_set_enabled(account, purple_core_get_ui(), TRUE);
+
+}
+
 // This will do the trick
 static void init_account(gpointer data, gpointer user_data)
 {
     PurpleAccount* account = (PurpleAccount*) data;
 
-    purple_request_close_with_handle(account);
-    purple_account_set_enabled(account, purple_core_get_ui(), FALSE);
-    purple_request_close_with_handle(account);
-    purple_account_set_enabled(account, purple_core_get_ui(), TRUE);
+    if(!purple_account_get_remember_password(account))
+    {
+
+        /* unlock_collection(plugin_collection); */
+        purple_debug_info(PLUGIN_ID, "Loading init password %s with username %s\n", account->protocol_id, account->username);
+        purple_account_set_enabled(account, purple_core_get_ui(), FALSE);
+
+        secret_collection_search(plugin_collection,
+                PURPLE_SCHEMA,
+                get_attributes(account),
+                SECRET_SEARCH_UNLOCK | SECRET_SEARCH_LOAD_SECRETS,
+                NULL,
+                on_init_item_loaded,
+                data);
+
+        /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
+
+    }
+
 }
 
 // Deferred enabling of accounts
@@ -384,13 +435,16 @@ static void on_got_service(GObject* source,
         dialog( PURPLE_NOTIFY_MSG_ERROR, "Could not connect to the Gnome Keyring.", error->message);
         g_error_free(error);
     }
+    else if (service == NULL)
+    {
+        purple_debug_info(PLUGIN_ID, "No service detected\n" );
+    }
     else
     {
         purple_debug_info(PLUGIN_ID, "Successfully initialized secret service\n" );
         init_collection(service);
+        g_object_unref(service);
     }
-
-    g_object_unref(service);
 
 }
 
@@ -507,6 +561,8 @@ static void on_item_loaded(GObject* source,
     }
 
 }
+
+// Load password of account from secret collection
 static void load_account_password(gpointer data, gpointer user_data)
 {
     PurpleAccount* account = (PurpleAccount*) data;
@@ -874,9 +930,9 @@ static gboolean plugin_unload(PurplePlugin* plugin)
     purple_signals_disconnect_by_handle(plugin);
     /* purple_prefs_disconnect_by_handle(plugin); */
 
-    /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
-    /* secret_service_disconnect(); */
-    /* g_object_unref(plugin_collection); */
+    if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection();
+    secret_service_disconnect();
+    g_object_unref(plugin_collection);
 
     if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == LOADED) purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, UNLOADED);
 
