@@ -89,6 +89,7 @@ static GHashTable* get_attributes(PurpleAccount* account)
             NULL);
 
 }
+
 /**************************************************
  **************************************************
  ******************** MESSAGES ********************
@@ -123,22 +124,22 @@ static void print_protocol_error_message(const gchar* protocol_name, gchar* prim
 }
 
 // Determine next action
-static void nextAction(PurpleAccount* account, int status)
-{
-    switch(status)
-    {
-        case LOADING:
-            load_account_password(account, NULL);
-            break;
-        case STORING:
-            store_account_password(account, NULL);
-            break;
-        case DELETING:
-            delete_account_password(account, NULL);
-            break;
-    }
+/* static void nextAction(PurpleAccount* account, int status) */
+/* { */
+/*     switch(status) */
+/*     { */
+/*         case LOADING: */
+/*             load_account_password(account, NULL); */
+/*             break; */
+/*         case STORING: */
+/*             store_account_password(account, NULL); */
+/*             break; */
+/*         case DELETING: */
+/*             delete_account_password(account, NULL); */
+/*             break; */
+/*     } */
+/* } */
 
-}
 /**************************************************
  **************************************************
  *********** Collection initalization *************
@@ -149,6 +150,7 @@ static void init_account(gpointer data, gpointer user_data)
 {
     PurpleAccount* account = (PurpleAccount*) data;
 
+    purple_request_close_with_handle(account);
     purple_account_set_enabled(account, purple_core_get_ui(), FALSE);
     purple_request_close_with_handle(account);
     purple_account_set_enabled(account, purple_core_get_ui(), TRUE);
@@ -337,13 +339,13 @@ static void init_collection(SecretService* service)
         else
         {
 
-            purple_debug_info(PLUGIN_ID, "Determine collection by name\n" );
             for(GList* li = collections; li != NULL; li = li->next)
             {
                 gchar* label = secret_collection_get_label(li->data);
                 if(strcmp(label, collection_name) == 0)
                 {
                     unlock_collection(li->data, GINT_TO_POINTER(INITIALIZING));
+                    purple_debug_info(PLUGIN_ID, "Determine collection by name: %s\n", label );
                     break;
                 }
             }
@@ -460,7 +462,7 @@ static void store_account_password(gpointer data, gpointer user_data)
             SECRET_ITEM_CREATE_REPLACE,
             NULL,
             on_item_created,
-            account
+            data
             );
 
     g_string_free(label, FALSE);
@@ -628,7 +630,6 @@ static void save_all_passwords(PurplePluginAction* action)
     gpointer user_data  = NULL;
     GList* accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, store_account_password, user_data);
-    /* g_list_free(accounts); */
     /* purple_notify_info(gnome_keyring_plugin, "Gnome Keyring Info", "Finished saving of passwords to keyring"); */
 }
 
@@ -638,7 +639,6 @@ static void delete_all_passwords(PurplePluginAction* action)
     gpointer user_data  = NULL;
     GList* accounts     = purple_accounts_get_all();
     g_list_foreach(accounts, delete_account_password, user_data);
-    g_list_free(accounts);
 
     /* purple_notify_info(gnome_keyring_plugin, "Gnome Keyring Info", "Finished deleting of passwords from keyring", NULL); */
 }
@@ -874,9 +874,9 @@ static gboolean plugin_unload(PurplePlugin* plugin)
     purple_signals_disconnect_by_handle(plugin);
     /* purple_prefs_disconnect_by_handle(plugin); */
 
-    if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection();
-    secret_service_disconnect();
-    g_object_unref(plugin_collection);
+    /* if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection(); */
+    /* secret_service_disconnect(); */
+    /* g_object_unref(plugin_collection); */
 
     if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == LOADED) purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, UNLOADED);
 
