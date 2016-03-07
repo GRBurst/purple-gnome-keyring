@@ -157,7 +157,6 @@ static void on_init_item_loaded(GObject* source,
     if (error != NULL)
     {
         print_protocol_error_message(purple_account_get_protocol_name(account), "Could not read init password", error);
-        g_error_free(error);
     }
     else if (items == NULL)
     {
@@ -453,6 +452,7 @@ static void init_secret_service()
 {
     purple_debug_info(PLUGIN_ID, "Initializing secret service\n" );
     secret_service_get(SECRET_SERVICE_OPEN_SESSION | SECRET_SERVICE_LOAD_COLLECTIONS, NULL, on_got_service, NULL);
+    /* secret_service_open(); */
 }
 
 /* End of collection functions */
@@ -482,10 +482,12 @@ static void on_item_created(GObject* source,
     {
         if(account->password != NULL)
         {
-            purple_account_set_password(account, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras eu semper eros. Donec non gravida mi. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Phasellus malesuada nisl eget est elementum, in ullamcorper nullam.");
 
-            g_free(account->password);
-            account->password = NULL;
+            // This will lead to crashes for some protocols, e.g. opensteamworks. Maybe time it or just use the signed on freeing...
+            /* purple_account_set_password(account, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras eu semper eros. Donec non gravida mi. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Phasellus malesuada nisl eget est elementum, in ullamcorper nullam."); */
+
+            /* g_free(account->password); */
+            /* account->password = NULL; */
 
             purple_debug_info(PLUGIN_ID, "Cleared password for %s with username %s\n", account->protocol_id, account->username);
         }
@@ -606,7 +608,6 @@ static void on_password_deleted(GObject* source,
     if(error != NULL)
     {
         print_protocol_error_message(account->protocol_id, "Could not delete password.", error);
-        g_error_free(error);
     }
     else
     {
@@ -630,7 +631,6 @@ static void delete_collection_password(GObject* source,
     if(error != NULL)
     {
         print_protocol_error_message(purple_account_get_protocol_name(account), "Could not delete password", error);
-        g_error_free(error);
     }
     else if (items == NULL)
     {
@@ -640,11 +640,12 @@ static void delete_collection_password(GObject* source,
     else
     {
             SecretItem* item    = items->data;
-            SecretValue* value  = secret_item_get_secret(item);
 
-            purple_account_set_password(account, secret_value_get_text(value));
+            // Not valid operation if account is deleted -> separate it
+            /* SecretValue* value  = secret_item_get_secret(item); */
+            /* purple_account_set_password(account, secret_value_get_text(value)); */
+            /* secret_value_unref(value); */
 
-            secret_value_unref(value);
             secret_item_delete(item, NULL, on_password_deleted, user_data);
 
             g_object_unref(item);
@@ -819,15 +820,16 @@ static GList* plugin_actions(PurplePlugin* plugin, gpointer context)
 
     const gchar* name = (purple_prefs_get_bool(KEYRING_CUSTOM_NAME_PREF) ? purple_prefs_get_string(KEYRING_NAME_PREF) : "(default)");
 
-    gchar msg[255] = "Save all passwords to keyring: ";
-    strcat(msg, name);
-    action  = purple_plugin_action_new(msg, save_all_passwords);
+    GString *action_label = g_string_new(NULL);
+    g_string_append_printf(action_label, "Save all passwords to keyring: %s", name);
+    action  = purple_plugin_action_new(action_label->str, save_all_passwords);
     list    = g_list_append(list, action);
 
-    strncpy(msg, "Delete all passwords from keyring: ", sizeof(msg));
-    strcat(msg, name);
-    action  = purple_plugin_action_new(msg, delete_all_passwords);
+    g_string_assign(action_label, "Delete all passwords from keyring: ");
+    g_string_append(action_label, name);
+    action  = purple_plugin_action_new(action_label->str, delete_all_passwords);
     list    = g_list_append(list, action);
+
 
     return list;
 }
@@ -926,13 +928,13 @@ static gboolean plugin_load(PurplePlugin* plugin)
 // Unload plugin
 static gboolean plugin_unload(PurplePlugin* plugin)
 {
-    purple_debug_info(PLUGIN_ID, "Unloading plugin");
+    purple_debug_info(PLUGIN_ID, "Unloading plugin\n");
     purple_signals_disconnect_by_handle(plugin);
     /* purple_prefs_disconnect_by_handle(plugin); */
 
     if(purple_prefs_get_bool(KEYRING_AUTO_LOCK_PREF)) lock_collection();
-    secret_service_disconnect();
     g_object_unref(plugin_collection);
+    secret_service_disconnect();
 
     if(purple_prefs_get_int(KEYRING_PLUG_STATUS_PREF) == LOADED) purple_prefs_set_int(KEYRING_PLUG_STATUS_PREF, UNLOADED);
 
